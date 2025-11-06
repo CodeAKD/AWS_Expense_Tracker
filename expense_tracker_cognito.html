@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>💸 Expense Tracker</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --card: #ffffff;
+      --ink: #1f2937;
+      --muted: #6b7280;
+      --accent: #2563eb;
+      --success: #16a34a;
+      --danger: #dc2626;
+      --border: #e5e7eb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      color: var(--ink);
+      background: linear-gradient(135deg, #eaf1ff, #ffffff 35%);
+    }
+    header {
+      padding: 18px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+    header h1 { margin: 0; font-size: 18px; font-weight: 700; }
+    .container { max-width: 1100px; margin: 24px auto; padding: 0 16px; }
+    .grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.04);
+    }
+    .card h2 { margin: 0 0 12px; font-size: 18px; }
+    .card h3 { margin: 0 0 8px; font-size: 16px; }
+    input, button, select {
+      font: inherit;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      outline: none;
+    }
+    input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,0.12); }
+    button {
+      background: var(--accent);
+      color: white;
+      cursor: pointer;
+      border: none;
+      transition: transform .04s ease, opacity .2s ease;
+    }
+    button.secondary { background: #111827; }
+    button.success { background: var(--success); }
+    button.danger { background: var(--danger); }
+    button.ghost { background: transparent; color: var(--ink); border: 1px solid var(--border); }
+    button:hover { opacity: .95; }
+    button:active { transform: translateY(1px); }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .muted { color: var(--muted); font-size: 12px; }
+    .hidden { display: none !important; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 10px; border-bottom: 1px solid var(--border); text-align: left; font-size: 14px; }
+    th { background: #f8fafc; position: sticky; top: 56px; z-index: 5; }
+    .pill { display:inline-block; padding:4px 8px; border-radius:999px; background:#eff6ff; color:#1d4ed8; font-size:12px; }
+    .footer { text-align:center; color:var(--muted); font-size:12px; padding:24px 0 36px; }
+    .nav { display:flex; gap:8px; }
+    .nav button { background:#f3f4f6; color:#111827; }
+    .nav button.active { background:#111827; color:white; }
+    .kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; background:#f3f4f6; padding:2px 6px; border-radius:6px; font-size:12px; }
+    .callout { border-left: 4px solid var(--accent); padding: 10px 12px; background:#f0f7ff; border-radius:10px; }
+  </style>
+
+  <!-- Amazon Cognito Identity JS (vanilla SDK) -->
+  <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6.2.0/dist/amazon-cognito-identity.min.js"></script>
+  <!-- Chart.js for visualizations -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header>
+    <h1>💸 Expense Tracker</h1>
+    <div class="nav">
+      <button id="nav-auth" class="ghost">Auth</button>
+      <button id="nav-dashboard" class="ghost">Dashboard</button>
+      <button id="nav-insights" class="ghost">Insights</button>
+      <button id="nav-visuals" class="ghost">Visualization</button>
+    </div>
+  </header>
+
+  <div class="container">
+
+    <!-- CONFIG CALLOUT -->
+    
+
+    <!-- AUTH VIEW -->
+    <div id="view-auth" class="grid">
+      <section class="card" style="grid-column: span 6;">
+        <h2>Sign Up</h2>
+        <div class="row">
+          <input id="su-email" type="email" placeholder="Email" style="flex:1; min-width:220px;">
+          <input id="su-password" type="password" placeholder="Password (min 8 chars)" style="flex:1; min-width:220px;">
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <button onclick="signUp()">Create account</button>
+        </div>
+        <p class="muted" style="margin-top:8px;">You will receive a confirmation email if your pool requires it.</p>
+      </section>
+
+      <section class="card" style="grid-column: span 6;">
+        <h2>Confirm Account</h2>
+        <div class="row">
+          <input id="conf-email" type="email" placeholder="Email used for signup" style="flex:1; min-width:220px;">
+          <input id="conf-code" type="text" placeholder="Confirmation Code" style="flex:1; min-width:220px;">
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <button class="success" onclick="confirmSignUp()">Confirm</button>
+        </div>
+      </section>
+
+      <section class="card" style="grid-column: span 12;">
+        <h2>Login</h2>
+        <div class="row">
+          <input id="li-email" type="email" placeholder="Email" style="flex:1; min-width:220px;">
+          <input id="li-password" type="password" placeholder="Password" style="flex:1; min-width:220px;">
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <button class="secondary" onclick="login()">Login</button>
+        </div>
+      </section>
+    </div>
+
+    <!-- DASHBOARD VIEW -->
+    <div id="view-dashboard" class="grid hidden">
+      <section class="card" style="grid-column: span 12;">
+        <h2>Dashboard</h2>
+        <div class="row" style="align-items:center;">
+          <div><span class="muted">Signed in as</span> <strong id="user-email">—</strong></div>
+          <span class="pill" id="auth-status">Signed Out</span>
+          <button class="ghost" onclick="logout()">Logout</button>
+          <button class="ghost" onclick="refreshExpenses()">Refresh</button>
+          <button class="ghost" onclick="clearLocal()">Clear Local Cache</button>
+        </div>
+      </section>
+
+      <section class="card" style="grid-column: span 6;">
+        <h3>Add Expense</h3>
+        <div class="row">
+          <input id="ex-amount" type="number" placeholder="Amount (₹)" style="flex:1; min-width:160px;">
+          <input id="ex-category" type="text" placeholder="Category (e.g., Food)" style="flex:1; min-width:160px;">
+          <input id="ex-date" type="date" style="flex:1; min-width:160px;">
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <button onclick="addExpense()">Add</button>
+        </div>
+        <p class="muted">Each expense is stored under your email in DynamoDB. The backend generates a unique <span class="kbd">sortId</span> (expense ID).</p>
+      </section>
+
+      <section class="card" style="grid-column: span 6;">
+        <h3>Delete Expense</h3>
+        <div class="row">
+          <input id="ex-deleteid" type="text" placeholder="Expense ID (sortId)" style="flex:2; min-width:240px;">
+          <button class="danger" onclick="deleteExpense()">Delete</button>
+        </div>
+        <p class="muted">Copy the <span class="kbd">sortId</span> from the table below to delete a specific entry.</p>
+      </section>
+
+      <section class="card" style="grid-column: span 12; overflow:auto; max-height:420px;">
+        <h3>Your Expenses</h3>
+        <table id="tbl-expenses">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Category</th>
+              <th>Amount (₹)</th>
+              <th>Expense ID (sortId)</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-expenses"></tbody>
+        </table>
+      </section>
+    </div>
+
+    <!-- INSIGHTS VIEW -->
+    <div id="view-insights" class="grid hidden">
+      <section class="card" style="grid-column: span 12;">
+        <h2>Insights</h2>
+        <div class="row">
+          <button class="ghost" onclick="buildInsights()">Recompute</button>
+          <span class="muted">Based on local cache of your expenses (fetched from API).</span>
+        </div>
+        <div id="insights-content" style="margin-top:10px;">
+          <div><strong>Total Spend:</strong> ₹<span id="ins-total">0</span></div>
+          <div style="margin-top:8px;"><strong>By Category:</strong></div>
+          <ul id="ins-category"></ul>
+        </div>
+      </section>
+    </div>
+
+    <!-- VISUALIZATION VIEW -->
+    <div id="view-visuals" class="grid hidden">
+      <section class="card" style="grid-column: span 6;">
+        <h2>Pie Chart — Spend by Category</h2>
+        <canvas id="pieChart" height="260"></canvas>
+      </section>
+      <section class="card" style="grid-column: span 6;">
+        <h2>Bar Chart — Spend by Category</h2>
+        <canvas id="barChart" height="260"></canvas>
+      </section>
+    </div>
+
+    
+
+  <script>
+    /********************
+     * CONFIG — EDIT ME *
+     ********************/
+    const CONFIG = {
+      cognito: {
+        userPoolId: '',      // 👉 replace
+        userPoolClientId: '', // 👉 replace
+        region: ''                     // 👉 replace
+      },
+      api: {
+        invokeUrl: '' // 👉 replace
+      },
+      localKeyPrefix: 'expenses-v1' // for localStorage
+    };
+
+    /**********************
+     * BASIC NAV HANDLERS *
+     **********************/
+    const views = ['view-auth', 'view-dashboard', 'view-insights', 'view-visuals'];
+    const navButtons = {
+      'nav-auth': 'view-auth',
+      'nav-dashboard': 'view-dashboard',
+      'nav-insights': 'view-insights',
+      'nav-visuals': 'view-visuals'
+    };
+    Object.entries(navButtons).forEach(([btnId, viewId]) => {
+      document.getElementById(btnId).addEventListener('click', () => showView(viewId));
+    });
+    function showView(id) {
+      views.forEach(v => document.getElementById(v).classList.add('hidden'));
+      document.getElementById(id).classList.remove('hidden');
+      // update nav
+      Object.keys(navButtons).forEach(k => document.getElementById(k).classList.remove('active'));
+      const found = Object.entries(navButtons).find(([,v]) => v === id);
+      if (found) document.getElementById(found[0]).classList.add('active');
+      if (id === 'view-dashboard') refreshExpenses();
+      if (id === 'view-insights') buildInsights();
+      if (id === 'view-visuals') drawCharts();
+    }
+
+    /***********************
+     * COGNITO — AUTH FLOW *
+     ***********************/
+    const poolData = {
+      UserPoolId: CONFIG.cognito.userPoolId,
+      ClientId: CONFIG.cognito.userPoolClientId
+    };
+    const userPool = new AmazonCognitoIdentity.CognitoUserPool(poolData);
+
+    function signUp() {
+      const email = document.getElementById('su-email').value.trim();
+      const password = document.getElementById('su-password').value;
+      const attributeList = [new AmazonCognitoIdentity.CognitoUserAttribute({ Name: 'email', Value: email })];
+      userPool.signUp(email, password, attributeList, null, (err, result) => {
+        if (err) { alert(err.message || JSON.stringify(err)); return; }
+        alert('Signup successful! Please confirm your email (check inbox).');
+        document.getElementById('conf-email').value = email;
+      });
+    }
+
+    function confirmSignUp() {
+      const email = document.getElementById('conf-email').value.trim();
+      const code = document.getElementById('conf-code').value.trim();
+      const userData = { Username: email, Pool: userPool };
+      const cognitoUser = new AmazonCognitoIdentity.CognitoUser(userData);
+      cognitoUser.confirmRegistration(code, true, (err, result) => {
+        if (err) { alert(err.message || JSON.stringify(err)); return; }
+        alert('Account confirmed! You can now log in.');
+      });
+    }
+
+    function login() {
+      const email = document.getElementById('li-email').value.trim();
+      const password = document.getElementById('li-password').value;
+      const authDetails = new AmazonCognitoIdentity.AuthenticationDetails({ Username: email, Password: password });
+      const userData = { Username: email, Pool: userPool };
+      const cognitoUser = new AmazonCognitoIdentity.CognitoUser(userData);
+      cognitoUser.authenticateUser(authDetails, {
+        onSuccess: (result) => {
+          const idToken = result.getIdToken().getJwtToken();
+          localStorage.setItem('idToken', idToken);
+          localStorage.setItem('email', email);
+          onAuthChange(true, email);
+          showView('view-dashboard');
+        },
+        onFailure: (err) => {
+          alert(err.message || JSON.stringify(err));
+        }
+      });
+    }
+
+    function logout() {
+      const cognitoUser = userPool.getCurrentUser();
+      if (cognitoUser) cognitoUser.signOut();
+      localStorage.clear();
+      onAuthChange(false);
+      showView('view-auth');
+    }
+
+    function onAuthChange(isSignedIn, email = '') {
+      const emailEl = document.getElementById('user-email');
+      const statusEl = document.getElementById('auth-status');
+      if (isSignedIn) {
+        emailEl.textContent = email;
+        statusEl.textContent = 'Signed In';
+        statusEl.style.background = '#dcfce7';
+        statusEl.style.color = '#166534';
+      } else {
+        emailEl.textContent = '—';
+        statusEl.textContent = 'Signed Out';
+        statusEl.style.background = '#fee2e2';
+        statusEl.style.color = '#991b1b';
+      }
+    }
+
+    // On load: restore session if token exists
+    (function init() {
+      const token = localStorage.getItem('idToken');
+      const email = localStorage.getItem('email');
+      if (token && email) {
+        onAuthChange(true, email);
+        showView('view-dashboard');
+      } else {
+        showView('view-auth');
+      }
+    })();
+
+    /************************
+     * API HELPERS (FETCH)  *
+     ************************/
+    function authHeader() {
+      const token = localStorage.getItem('idToken');
+      return { 'Content-Type': 'application/json', 'Authorization': token };
+    }
+
+    async function addExpense() {
+      const amount = Number(document.getElementById('ex-amount').value);
+      const category = document.getElementById('ex-category').value.trim();
+      const date = document.getElementById('ex-date').value;
+      if (!amount || !category || !date) { alert('Please fill all fields'); return; }
+
+      const res = await fetch(`${CONFIG.api.invokeUrl}/expense`, {
+        method: 'POST',
+        headers: authHeader(),
+        body: JSON.stringify({ amount, category, date })
+      });
+      if (res.ok) {
+        alert('✅ Expense added');
+        document.getElementById('ex-amount').value = '';
+        document.getElementById('ex-category').value = '';
+        document.getElementById('ex-date').value = '';
+        await refreshExpenses(true);
+      } else {
+        const t = await res.text();
+        alert('❌ Failed to add expense\n' + t);
+      }
+    }
+
+    async function deleteExpense() {
+      const expenseId = document.getElementById('ex-deleteid').value.trim();
+      if (!expenseId) { alert('Enter an expense ID (sortId)'); return; }
+      const res = await fetch(`${CONFIG.api.invokeUrl}/expense`, {
+        method: 'DELETE',
+        headers: authHeader(),
+        body: JSON.stringify({ expense_id: expenseId })
+      });
+      if (res.ok) {
+        alert('🗑️ Expense deleted');
+        document.getElementById('ex-deleteid').value = '';
+        await refreshExpenses(true);
+      } else {
+        const t = await res.text();
+        alert('❌ Failed to delete\n' + t);
+      }
+    }
+
+    async function fetchExpensesFromApi() {
+      const res = await fetch(`${CONFIG.api.invokeUrl}/expense`, {
+        method: 'GET',
+        headers: authHeader()
+      });
+      if (!res.ok) {
+        const t = await res.text();
+        throw new Error('Fetch failed: ' + t);
+      }
+      return res.json();
+    }
+
+    /*****************************
+     * LOCAL CACHE + PRESENTATION *
+     *****************************/
+    function localKey() {
+      const email = localStorage.getItem('email') || 'anonymous';
+      return `${CONFIG.localKeyPrefix}:${email}`;
+    }
+
+    function saveLocal(expenses) {
+      localStorage.setItem(localKey(), JSON.stringify(expenses || []));
+    }
+    function loadLocal() {
+      try {
+        return JSON.parse(localStorage.getItem(localKey()) || '[]');
+      } catch { return []; }
+    }
+    function clearLocal() {
+      localStorage.removeItem(localKey());
+      renderExpenses([]);
+      buildInsights();
+      drawCharts();
+    }
+
+    async function refreshExpenses(fetchRemote = false) {
+      try {
+        let items = loadLocal();
+        if (fetchRemote || items.length === 0) {
+          const data = await fetchExpensesFromApi();
+          // Expecting data to be either {items:[...]} or [...]
+          items = Array.isArray(data) ? data : (data.items || []);
+          saveLocal(items);
+        }
+        renderExpenses(items);
+        buildInsights();
+        drawCharts();
+      } catch (e) {
+        console.error(e);
+        alert('Could not refresh expenses. See console for details.');
+      }
+    }
+
+    function renderExpenses(items) {
+      const tbody = document.getElementById('tbody-expenses');
+      tbody.innerHTML = '';
+      // Accept both attribute styles: amount vs Amount, category vs Category, etc.
+      items.sort((a, b) => (a.date || a.Date || '').localeCompare(b.date || b.Date || ''));
+      for (const it of items) {
+        const amount = it.amount ?? it.Amount ?? '';
+        const category = it.category ?? it.Category ?? '';
+        const date = it.date ?? it.Date ?? '';
+        const sortId = it.sortId ?? it.SortId ?? it.expense_id ?? '';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${date}</td><td>${category}</td><td>₹${amount}</td><td><code>${sortId}</code></td>`;
+        tbody.appendChild(tr);
+      }
+    }
+
+    /*********************
+     * INSIGHTS & CHARTS *
+     *********************/
+    function summarizeByCategory(items) {
+      const map = {};
+      for (const it of items) {
+        const cat = (it.category ?? it.Category ?? 'Uncategorized').trim() || 'Uncategorized';
+        const amt = Number(it.amount ?? it.Amount ?? 0) || 0;
+        map[cat] = (map[cat] || 0) + amt;
+      }
+      return map;
+    }
+
+    function buildInsights() {
+      const items = loadLocal();
+      const total = items.reduce((acc, it) => acc + (Number(it.amount ?? it.Amount ?? 0) || 0), 0);
+      document.getElementById('ins-total').textContent = total.toFixed(2);
+      const byCat = summarizeByCategory(items);
+      const ul = document.getElementById('ins-category');
+      ul.innerHTML = '';
+      Object.entries(byCat).forEach(([cat, val]) => {
+        const li = document.createElement('li');
+        li.textContent = `${cat}: ₹${val.toFixed(2)}`;
+        ul.appendChild(li);
+      });
+    }
+
+    let pieChart, barChart;
+    function drawCharts() {
+      const items = loadLocal();
+      const byCat = summarizeByCategory(items);
+      const labels = Object.keys(byCat);
+      const values = Object.values(byCat);
+
+      const pieCtx = document.getElementById('pieChart');
+      const barCtx = document.getElementById('barChart');
+
+      if (pieChart) pieChart.destroy();
+      if (barChart) barChart.destroy();
+
+      pieChart = new Chart(pieCtx, {
+        type: 'pie',
+        data: {
+          labels,
+          datasets: [{ data: values }]
+        }
+      });
+
+      barChart = new Chart(barCtx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{ label: 'Spend (₹)', data: values }]
+        },
+        options: { scales: { y: { beginAtZero: true } } }
+      });
+    }
+  </script>
+</body>
+</html>
